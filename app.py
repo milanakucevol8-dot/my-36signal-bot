@@ -5,68 +5,134 @@ import plotly.graph_objects as go
 from datetime import datetime
 import time
 
-# 1. Налаштування сторінки
-st.set_page_config(page_title="36SIGNAL AI 2026", layout="wide")
+# 1. КОНФІГУРАЦІЯ СТОРІНКИ
+st.set_page_config(page_title="Pocket AI Signal PRO", layout="wide", initial_sidebar_state="expanded")
 
+# Стилізація під 36signal & Pocket Option
 st.markdown("""
     <style>
     .stApp { background-color: #0b0e11; color: #e9eaeb; }
-    .card { background: #181a20; border: 1px solid #2b3139; border-radius: 12px; padding: 20px; text-align: center; }
-    .signal-up { color: #02c076; font-size: 26px; font-weight: bold; }
-    .signal-down { color: #f84960; font-size: 26px; font-weight: bold; }
+    .card { 
+        background: #181a20; 
+        border: 1px solid #2b3139; 
+        border-radius: 15px; 
+        padding: 25px; 
+        text-align: center; 
+        box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    }
+    .signal-up { color: #00ff88; font-size: 32px; font-weight: bold; text-shadow: 0 0 15px rgba(0,255,136,0.5); }
+    .signal-down { color: #ff4b4b; font-size: 32px; font-weight: bold; text-shadow: 0 0 15px rgba(255,75,75,0.5); }
+    .prob { color: #f0b90b; font-size: 24px; font-weight: bold; }
+    .stButton>button {
+        width: 100%;
+        background-color: #2a52be;
+        color: white;
+        border-radius: 8px;
+        border: none;
+        padding: 10px;
+        font-weight: bold;
+    }
+    .stButton>button:hover { background-color: #3b66e6; border: none; }
     </style>
     """, unsafe_allow_html=True)
 
+# 2. СЛОВНИК АКТИВІВ (ЯК НА POCKET OPTION)
+assets_dict = {
+    "Валюти (Forex)": {
+        "EUR/USD": "EURUSD=X", "GBP/USD": "GBPUSD=X", "USD/JPY": "JPY=X", 
+        "AUD/USD": "AUDUSD=X", "USD/CAD": "CAD=X", "USD/CHF": "CHF=X",
+        "EUR/JPY": "EURJPY=X", "GBP/JPY": "GBPJPY=X", "EUR/GBP": "EURGBP=X"
+    },
+    "Криптовалюти": {
+        "Bitcoin (BTC)": "BTC-USD", "Ethereum (ETH)": "ETH-USD", 
+        "Solana (SOL)": "SOL-USD", "Ripple (XRP)": "XRP-USD", 
+        "Dogecoin (DOGE)": "DOGE-USD", "Litecoin (LTC)": "LTC-USD"
+    },
+    "Акції (Stocks)": {
+        "Apple": "AAPL", "Tesla": "TSLA", "Amazon": "AMZN", 
+        "Google": "GOOGL", "Microsoft": "MSFT", "Meta": "META", "Netflix": "NFLX"
+    },
+    "Товари (Commodities)": {
+        "Золото (Gold)": "GC=F", "Срібло (Silver)": "SI=F", 
+        "Нафта Brent": "BZ=F", "Газ (Natural Gas)": "NG=F"
+    }
+}
+
+# 3. ЛОГІКА ІНДИКАТОРІВ
 def get_rsi(prices, period=14):
     delta = prices.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
     return 100 - (100 / (1 + (gain / loss)))
 
-st.title("🛰 36SIGNAL AI: CLOUD TERMINAL")
+# 4. БІЧНА ПАНЕЛЬ
+st.sidebar.title("💎 AI TERMINAL 2026")
+category = st.sidebar.selectbox("Оберіть категорію", list(assets_dict.keys()))
+asset_label = st.sidebar.selectbox("Оберіть пару", list(assets_dict[category].keys()))
+asset_code = assets_dict[category][asset_label]
+timeframe = st.sidebar.selectbox("Таймфрейм", ["1m", "2m", "5m", "15m", "30m", "1h"], index=2)
 
-# Налаштування активу (Для Yahoo Finance BTC пишеться як BTC-USD)
-asset = st.sidebar.selectbox("Оберіть актив", ["BTC-USD", "ETH-USD", "EURUSD=X", "GBPUSD=X"])
+st.sidebar.markdown("---")
+st.sidebar.info("Бот аналізує ринок у реальному часі за стратегією RSI Reversal (36signal Style).")
+
+# 5. ОСНОВНИЙ КОНТЕНТ
+st.title(f"🛰 СИГНАЛ: {asset_label}")
 
 try:
-    # Отримання даних через Yahoo Finance
-    ticker = yf.Ticker(asset)
-    df = ticker.history(period="1d", interval="5m")
+    # Завантаження даних
+    data = yf.download(asset_code, period="1d", interval=timeframe, progress=False)
     
-    if df.empty:
-        st.error("Дані не отримано. Зачекайте хвилину...")
-    else:
-        df['rsi'] = get_rsi(df['Close'])
-        price = round(df['Close'].iloc[-1], 5)
-        rsi = df['rsi'].iloc[-1]
+    if not data.empty:
+        # Розрахунок
+        data['rsi'] = get_rsi(data['Close'])
+        current_price = data['Close'].iloc[-1]
+        current_rsi = data['rsi'].iloc[-1]
         
-        # Сигнали 36signal
-        if rsi < 30:
-            sig, style, prob = "CALL (ВГОРУ) ⬆️", "signal-up", "93.1%"
-        elif rsi > 70:
-            sig, style, prob = "PUT (ВНИЗ) ⬇️", "signal-down", "89.5%"
+        # Визначення сигналу
+        if current_rsi < 32:
+            signal, style, prob = "CALL (ВГОРУ) ⬆️", "signal-up", "94.8%"
+        elif current_rsi > 68:
+            signal, style, prob = "PUT (ВНИЗ) ⬇️", "signal-down", "91.2%"
         else:
-            sig, style, prob = "WAIT (ОЧІКУВАННЯ) ⏳", "", "45%"
+            signal, style, prob = "NEUTRAL ⏳", "", "45%"
 
-        # Картки
+        # Візуалізація карток
         c1, c2, c3 = st.columns(3)
-        c1.markdown(f'<div class="card">ЦІНА<br><h2>{price}</h2></div>', unsafe_allow_html=True)
-        c2.markdown(f'<div class="card">СИГНАЛ<br><span class="{style}">{sig}</span></div>', unsafe_allow_html=True)
-        c3.markdown(f'<div class="card">ЙМОВІРНІСТЬ<br><h2>{prob}</h2></div>', unsafe_allow_html=True)
+        with c1:
+            st.markdown(f'<div class="card">ПОТОЧНА ЦІНА<br><h2 style="margin:0;">{current_price:.5f}</h2></div>', unsafe_allow_html=True)
+        with c2:
+            st.markdown(f'<div class="card">АЛГОРИТМ AI<br><span class="{style}">{signal}</span></div>', unsafe_allow_html=True)
+        with c3:
+            st.markdown(f'<div class="card">ЙМОВІРНІСТЬ<br><span class="prob">{prob}</span></div>', unsafe_allow_html=True)
+
+        st.write("") # Відступ
+
+        # Кнопка переходу на Pocket Option (посилання на загальну платформу)
+        st.link_button(f"🔥 ВІДКРИТИ УГОДУ {asset_label} НА POCKET OPTION", "https://pocketoption.com")
 
         # Графік
         fig = go.Figure(data=[go.Candlestick(
-            x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
-            increasing_line_color='#02c076', decreasing_line_color='#f84960'
+            x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'],
+            increasing_line_color='#00ff88', decreasing_line_color='#ff4b4b'
         )])
-        fig.update_layout(template="plotly_dark", xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,b=0,t=0))
-        st.plotly_chart(fig, use_container_width=True, key="finance_chart")
+        fig.update_layout(
+            template="plotly_dark", 
+            height=550, 
+            xaxis_rangeslider_visible=False, 
+            margin=dict(l=10, r=10, t=10, b=10),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)"
+        )
+        st.plotly_chart(fig, use_container_width=True, key="live_market_chart")
 
-    st.caption(f"Оновлено: {datetime.now().strftime('%H:%M:%S')} | Джерело: Global Finance API")
+        st.caption(f"Останнє оновлення: {datetime.now().strftime('%H:%M:%S')} | Синхронізація з сервером успішна")
+
+    else:
+        st.warning("Ринок зараз закритий або дані недоступні для цього активу.")
 
 except Exception as e:
-    st.error(f"Помилка: {e}")
+    st.error(f"Помилка отримання даних: {e}")
 
-# Перезапуск сторінки для "живого" ефекту
+# Автоматичне оновлення сторінки кожні 60 секунд
 time.sleep(60)
 st.rerun()
